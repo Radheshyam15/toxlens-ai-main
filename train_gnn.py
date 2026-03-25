@@ -142,13 +142,24 @@ for epoch in range(1, 50):  # allow more epochs, but stop early
     if test_f1 > best_f1:
         best_f1 = test_f1
         torch.save(model.state_dict(), "toxicity_gnn_model.pth")
+<<<<<<< HEAD
         print("Best model saved")
+=======
+        print("✅ Best model saved")
+>>>>>>> 925dc03d (Add missing files)
         counter = 0
     else:
         counter += 1
 
     if counter >= patience:
+<<<<<<< HEAD
         print("Early stopping triggered")
         break
 
 print("\nTraining complete")
+=======
+        print("🛑 Early stopping triggered")
+        break
+
+print("\nTraining complete ✅")
+>>>>>>> 925dc03d (Add missing files)
