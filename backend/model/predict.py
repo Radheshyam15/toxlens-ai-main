@@ -121,12 +121,12 @@ model.eval()
 print("Model loaded ✅")
 
 # -------------------------
-# Predict
+# Predict & SHAP Insights
 # -------------------------
 def predict_single(smiles):
     graph = smiles_to_graph(smiles)
     if graph is None:
-        return None, None
+        return None, None, []
 
     graph = graph.to(device)
     graph.batch = torch.zeros(graph.num_nodes, dtype=torch.long).to(device)
@@ -136,15 +136,73 @@ def predict_single(smiles):
         prob = torch.sigmoid(out).item()
 
     label = "TOXIC" if prob > 0.5 else "NON-TOXIC"
-    return label, prob
+
+    # SHAP Explainability for Fingerprint Features
+    shap_insights = []
+    try:
+        mol = Chem.MolFromSmiles(smiles)
+        bit_info = {}
+        if mol is not None:
+            AllChem.GetMorganFingerprintAsBitVect(mol, radius=2, nBits=2048, bitInfo=bit_info)
+
+        import shap
+        class SHAPModelWrapper(torch.nn.Module):
+            def __init__(self, base_model, graph_x, edge_index, batch):
+                super().__init__()
+                self.base_model = base_model
+                self.graph_x = graph_x
+                self.edge_index = edge_index
+                self.batch = batch
+            def forward(self, fp):
+                from torch_geometric.data import Data
+                data = Data(x=self.graph_x, edge_index=self.edge_index, batch=self.batch)
+                data.fp = fp
+                return self.base_model(data)
+
+        wrapper = SHAPModelWrapper(model, graph.x, graph.edge_index, graph.batch)
+        wrapper.train()
+        
+        bg = torch.zeros((1, 2048), dtype=torch.float).to(device)
+        test_fp = graph.fp.view(1, 2048).to(device)
+        test_fp.requires_grad_()
+        
+        explainer = shap.GradientExplainer(wrapper, bg)
+        shap_values = explainer.shap_values(test_fp)
+        
+        vals = shap_values[0][0] if isinstance(shap_values, list) else shap_values[0]
+        
+        import numpy as np
+        from rdkit.Chem import PathToSubmol, FindAtomEnvironmentOfRadiusN, MolToSmiles
+        
+        top_indices = np.argsort(vals)[-3:][::-1]
+        for idx in top_indices:
+            if vals[idx] > 0.01:
+                # Map SHAP bit back to the chemical Substructure SMILES!
+                if mol is not None and idx in bit_info:
+                    atom_idx, radius = bit_info[idx][0]
+                    if radius == 0:
+                        symbol = mol.GetAtomWithIdx(atom_idx).GetSymbol()
+                        shap_insights.append(f"Atom '{symbol}' (SHAP importance score: {vals[idx]:.4f}) [mapped from Bit {idx}]")
+                    else:
+                        env = FindAtomEnvironmentOfRadiusN(mol, radius, atom_idx)
+                        amap = {}
+                        submol = PathToSubmol(mol, env, atomMap=amap)
+                        frag_smiles = MolToSmiles(submol)
+                        shap_insights.append(f"Substructure '{frag_smiles}' (SHAP importance score: {vals[idx]:.4f}) [mapped from Bit {idx}]")
+                else:
+                    shap_insights.append(f"Molecular Fingerprint Bit {idx} (SHAP importance score: {vals[idx]:.4f})")
+    except Exception as e:
+        shap_insights = [f"SHAP Error: {str(e)}"]
+
+    return label, prob, shap_insights
 
 # -------------------------
 # MAIN FUNCTION 🔥
 # -------------------------
 def predict_smiles(smiles1, smiles2):
 
-    res1, conf1 = predict_single(smiles1)
-    res2, conf2 = predict_single(smiles2)
+    res1, conf1, shap1 = predict_single(smiles1)
+    res2, conf2, shap2 = predict_single(smiles2)
 
     if res1 is None or res2 is None:
         return {"error": "Invalid SMILES"}
@@ -161,7 +219,9 @@ def predict_smiles(smiles1, smiles2):
 
     # 🧠 Structured reasoning
     A = build_reasoning(smiles1)
+    A["shap_insights"] = shap1
     B = build_reasoning(smiles2)
+    B["shap_insights"] = shap2
 
     reasoning_struct = {
         "drugA": A,
@@ -170,8 +230,8 @@ def predict_smiles(smiles1, smiles2):
     }
 
     return {
-        "drugA": {"prediction": res1, "confidence": round(conf1, 4)},
-        "drugB": {"prediction": res2, "confidence": round(conf2, 4)},
+        "drugA": {"smiles": smiles1, "prediction": res1, "confidence": round(conf1, 4)},
+        "drugB": {"smiles": smiles2, "prediction": res2, "confidence": round(conf2, 4)},
         "interaction": interaction,
         "overall_confidence": round(avg_conf, 4),
         "structured_reasoning": reasoning_struct

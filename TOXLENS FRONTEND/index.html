@@ -25,6 +25,7 @@
       <a href="#hero">Home</a>
       <a href="#analyzer">Analyzer</a>
       <a href="#about">About</a>
+      <a href="#api">API</a>
     </div>
     <div class="nav-badge">GNN-Powered</div>
   </nav>
@@ -237,13 +238,97 @@
           line-height:1.6;
           font-size:14px;
         "></div>
-
-        <button class="btn-reanalyze" onclick="scrollToAnalyzer()">
-          Run Another Analysis
+        
+        <button class="btn-ghost" style="margin-top:10px; font-size: 13px; padding: 6px 14px;" onclick="simplifyExplanation()">
+          👶 Simplify AI Explanation
         </button>
+
+        <div style="margin-top: 20px;">
+            <button class="btn-reanalyze" onclick="scrollToAnalyzer()">
+              Run Another Analysis
+            </button>
+            <button class="btn-reanalyze" onclick="generateReport()" style="margin-left:10px; background:linear-gradient(135deg,rgba(180,0,255,0.2),rgba(0,180,255,0.2)); border-color: rgba(180,0,255,0.4);">
+              📄 Generate Detailed Clinical Report (AI)
+            </button>
+        </div>
       </div>
+
+      <!-- FEATURE 10: Result Visualization Dashboard -->
+      <div class="f10-dashboard" id="f10Dashboard" style="display: none;">
+        <div class="f10-header">
+          <div class="f10-title">
+            <span class="f10-icon">📊</span>
+            AI Confidence Visualization
+          </div>
+          <div class="f10-powered">Powered by ToxLens AI Engine</div>
+        </div>
+        
+        <div class="f10-status-bar" id="f10Status">
+          <div class="spinner f10-spinner"></div>
+          <span id="f10StatusText">Analyzing...</span>
+        </div>
+
+        <div class="f10-grid">
+          <!-- A) Prediction Summary Card -->
+          <div class="f10-card f10-summary">
+            <h3 class="f10-card-title">Prediction Summary</h3>
+            <div class="f10-verdict" id="f10Verdict">—</div>
+            <div class="f10-confidence">
+              <span>Confidence</span>
+              <span id="f10ConfPct">—</span>
+            </div>
+          </div>
+
+          <!-- B) Probability Visualization -->
+          <div class="f10-card f10-probability">
+            <h3 class="f10-card-title">Toxicity Probability</h3>
+            <div class="f10-gauge-container">
+              <svg class="f10-gauge" viewBox="0 0 100 50">
+                <defs>
+                  <linearGradient id="gauge-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#00ffb4" />
+                    <stop offset="100%" stop-color="#00c8ff" />
+                  </linearGradient>
+                </defs>
+                <path class="f10-gauge-bg" d="M 10 45 A 35 35 0 0 1 90 45" fill="none" />
+                <path class="f10-gauge-fill" id="f10GaugeFill" d="M 10 45 A 35 35 0 0 1 90 45" fill="none" stroke="url(#gauge-gradient)" stroke-dasharray="110" stroke-dashoffset="110" />
+              </svg>
+              <div class="f10-gauge-label" id="f10GaugeLabel">0%</div>
+            </div>
+          </div>
+
+          <!-- C) Molecular Insights Panel -->
+          <div class="f10-card f10-insights">
+            <h3 class="f10-card-title">Molecular Insights</h3>
+            <div class="f10-tags" id="f10InsightsTags">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <!-- D) Feature Importance Visualization -->
+          <div class="f10-card f10-feature">
+            <h3 class="f10-card-title">Feature Importance</h3>
+            <div class="f10-bars" id="f10FeatureBars">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </section>
+
+  <div id="reportModal" class="modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); backdrop-filter: blur(5px);">
+    <div class="modal-content" style="background-color: #0b1120; margin: 5% auto; padding: 30px; border: 1px solid rgba(0,255,180,0.3); width: 80%; max-width: 800px; border-radius: 12px; color: #cfd8dc; box-shadow: 0 0 30px rgba(0,255,180,0.1); line-height: 1.6;">
+      <span class="close" onclick="closeReport()" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+      <h2 style="color: #00ffb4; margin-top: 0; display:flex; align-items:center; gap:8px;">📄 Comprehensive Clinical Toxicity Report</h2>
+      <div id="reportContent" style="margin-top: 20px; margin-bottom: 20px;">Loading report...</div>
+      <div style="text-align: right;">
+        <button id="downloadReportBtn" class="btn-primary" style="display: none; padding: 10px 20px; font-size: 14px; background: linear-gradient(135deg,rgba(0,255,180,0.2),rgba(0,180,255,0.2)); border: 1px solid rgba(0,255,180,0.4);" onclick="downloadReport()">📥 Download Medical Report (.md)</button>
+      </div>
+    </div>
+  </div>
+
 
   <section class="about" id="about">
     <div class="section-header">
@@ -277,6 +362,40 @@
         <div class="step-num">04</div>
         <h3>Risk Assessment</h3>
         <p>Combined toxicity outputs generate LOW / MEDIUM / HIGH interaction risk with overall confidence score.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="api-section" id="api">
+    <div class="section-header">
+      <div class="section-tag">⬡ Pharma Integration</div>
+      <h2 class="section-title">API <span class="gradient-text">Integration</span></h2>
+      <p class="section-sub">Integrate ToxLens toxicity prediction directly into your pharmaceutical pipeline via our REST API.</p>
+    </div>
+
+    <div class="api-grid">
+      <div class="api-card">
+        <div class="api-card-header">
+          <span class="api-badge">🔑 Authentication</span>
+        </div>
+        <p style="color:var(--text-2); font-size:14px; line-height:1.7; margin-bottom:14px;">
+          All API endpoints (except <code>/health</code>) require an <strong style="color:var(--green)">X-API-Key</strong> header.
+          Contact us to obtain a production key. Demo keys are available for testing.
+        </p>
+        <div class="api-key-display">
+          <span style="font-family:var(--font-mono); font-size:12px; color:var(--green);">X-API-Key: PHARMA-DEMO-KEY-001</span>
+        </div>
+      </div>
+
+      <div class="api-card api-card-rate">
+        <div class="api-card-header">
+          <span class="api-badge">🛡️ Rate Limiting</span>
+        </div>
+        <p style="color:var(--text-2); font-size:14px; line-height:1.7;">
+          Each API key is limited to <strong style="color:var(--cyan)">10 requests per minute</strong>.
+          Exceeding this returns HTTP <strong style="color:var(--red)">429 Too Many Requests</strong>.
+          Contact us for enterprise-tier rate limits.
+        </p>
       </div>
     </div>
   </section>
